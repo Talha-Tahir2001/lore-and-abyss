@@ -3,7 +3,7 @@
 > **Your story. No limits.**
 > An AI-powered narrative RPG engine where a multi-agent orchestration system plays dungeon master — tracking your stats, your choices, and the world around you, turn by turn.
 >
-> Built for **H0: Hack the Zero Stack** (Vercel v0 × AWS Databases) — Track 4: Open Innovation.
+> Built for [H0: Hack the Zero Stack (Vercel v0 × AWS Databases)](https://h01.devpost.com/) — Track 4: Open Innovation.
 
 > 🔗 **Repo:** https://github.com/Talha-Tahir2001/lore-and-abyss
 > 
@@ -30,12 +30,10 @@
 
 
 # Lore & Abyss 🗡️
-
+![Lore & Abyss Landing](./docs/lore-and-abyss.png)
 ## What is Lore & Abyss?
 
 A parent describes their child to generate a storybook; Lore & Abyss does the inverse — *you* describe what you do, and the engine generates the next moment of your story in real time. Pick a genre, name your character, and a pipeline of specialized AI agents narrates the scene, updates your HP/sanity/inventory/location, resolves combat with real damage numbers, and tracks the tension building behind every choice. Close the tab whenever you want — the full session, transcript and all, is waiting for you in DynamoDB when you come back.
-
-![Lore & Abyss Landing Page](./docs/screenshots/landing-page.png)
 
 ---
 
@@ -573,7 +571,7 @@ Shared nav bar with conditional rendering via Clerk's `<Show when="signed-in">` 
 ## Setup & local development
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 22+
 - An AWS account (free tier is enough)
 - A Clerk account (free tier)
 - An AI/ML API key ([aimlapi.com](https://aimlapi.com))
@@ -728,6 +726,14 @@ Next.js 16 made `params` a Promise in client components. Rather than converting 
 **Database used:** AWS DynamoDB (on-demand capacity), single-table design with one GSI. See [Data model](#data-model-dynamodb) and [AWS Database usage proof](#aws-database-usage-proof) below.
 
 ---
+### AWS Dynamo DB Dashboard
+![AWS DynamoDB Dashboard](./docs/aws2.png)
+
+---
+
+### AWS Dynamo DB Item Explorer 
+![AWS DynamoDB Items Explorer](./docs/aws.png)
+---
 
 ## AWS Database usage proof
 
@@ -735,10 +741,8 @@ See `/docs/screenshots` in this repo for:
 - DynamoDB table configuration (`lore-abyss`, on-demand capacity, `pk`/`sk` schema)
 - GSI configuration (`UserSessionsByDate`)
 - Live table items showing `SESSION`, `WORLDSTATE`, and `TURN#` records from actual gameplay
-
 ---
 
----
 
 ## License
 
@@ -746,4 +750,11 @@ This project is open-source and available under the [MIT License](https://github
 
 ---
 
-Built by [Talha Tahir](https://github.com/Talha-Tahir2001) for H0: Hack the Zero Stack.
+## Submission
+Built by [Talha Tahir](https://github.com/Talha-Tahir2001) for [H0: Hack the Zero Stack (Vercel v0 × AWS Databases)](https://h01.devpost.com/)
+
+---
+
+\#H0Hackathon \#Vercel \#AWSDynamoDB
+
+---
