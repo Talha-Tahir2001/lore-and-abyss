@@ -700,7 +700,7 @@ See `/docs/screenshots` in this repo for:
 
 ## License
 
-MIT
+This project is open-source and available under the [MIT License](https://github.com/Talha-Tahir2001/lore-and-abyss/blob/main/LICENSE).
 
 ---
 
