@@ -1,29 +1,44 @@
-# Lore & Abyss
+# Lore & Abyss 🗡️
 
-**An AI-powered text-based narrative RPG engine.** Choose a genre, name your character, and a multi-agent orchestration system narrates a living story that reacts to every choice you make — tracking your inventory, HP, sanity, tension, and the NPCs you meet across a persistent session you can leave and resume at any time.
+> **Your story. No limits.**
+> An AI-powered narrative RPG engine where a multi-agent orchestration system plays dungeon master — tracking your stats, your choices, and the world around you, turn by turn.
+>
+> Built for **H0: Hack the Zero Stack** (Vercel v0 × AWS Databases) — Track 4: Open Innovation.
+>
+> 🔗 **Repo:** https://github.com/Talha-Tahir2001/lore-and-abyss
 
-Built for **H0: Hack the Zero Stack** (Vercel v0 × AWS Databases) — Track 4: Open Innovation.
+---
 
-🔗 **Repo:** [github.com/Talha-Tahir2001/lore-and-abyss](https://github.com/Talha-Tahir2001/lore-and-abyss)
+## What is Lore & Abyss?
+
+A parent describes their child to generate a storybook; Lore & Abyss does the inverse — *you* describe what you do, and the engine generates the next moment of your story in real time. Pick a genre, name your character, and a pipeline of specialized AI agents narrates the scene, updates your HP/sanity/inventory/location, resolves combat with real damage numbers, and tracks the tension building behind every choice. Close the tab whenever you want — the full session, transcript and all, is waiting for you in DynamoDB when you come back.
+
+![Lore & Abyss Landing Page](./docs/screenshots/landing-page.png)
 
 ---
 
 ## Table of Contents
 
-- [What it does](#what-it-does)
+- [What is Lore & Abyss?](#what-is-lore--abyss)
 - [Why it's interesting](#why-its-interesting)
 - [Tech stack](#tech-stack)
+- [Features](#features)
 - [System architecture](#system-architecture)
 - [The agent pipeline](#the-agent-pipeline)
 - [Data model (DynamoDB)](#data-model-dynamodb)
 - [Turn lifecycle (sequence diagram)](#turn-lifecycle-sequence-diagram)
 - [Project structure](#project-structure)
+- [User flows](#user-flows)
+- [API Endpoints](#api-endpoints)
+- [Component reference](#component-reference)
 - [Setup & local development](#setup--local-development)
 - [Environment variables](#environment-variables)
-- [Feature walkthrough](#feature-walkthrough)
+- [AWS & Clerk setup](#aws--clerk-setup)
+- [Key technical decisions](#key-technical-decisions)
 - [Design decisions & trade-offs](#design-decisions--trade-offs)
 - [Known limitations](#known-limitations)
 - [Roadmap](#roadmap)
+- [Hackathon submission notes](#hackathon-submission-notes)
 - [AWS Database usage proof](#aws-database-usage-proof)
 
 ---
@@ -62,6 +77,22 @@ It's also a genuine test of whether a **serverless, single-table DynamoDB design
 | AI layer | AI/ML API (OpenAI-compatible endpoint, Llama 3.2) | Production-equivalent to AWS Bedrock; used here due to new-account Bedrock token throttling — architecture is Bedrock-compatible (see [Design Decisions](#design-decisions--trade-offs)) |
 | Hosting | Vercel | One-click deploy from this repo, edge-ready |
 | Diagramming | Mermaid (rendered below) | Versioned alongside the code |
+
+---
+
+## Features
+
+- **Four genres, four voices** — Fantasy, Horror, Sci-Fi, and Noir each carry a distinct system prompt that shapes vocabulary, pacing, and stakes for the entire session, not just the opening scene
+- **Streaming narrative** — story text streams in word by word rather than appearing all at once, reinforcing the "live dungeon master" feel
+- **Living world state sidebar** — HP, sanity, gold, inventory, current location, and present NPCs update after every turn, sourced directly from the World State Agent's output
+- **Tension meter** — a 0–100 score maintained by the World State Agent that visibly shifts the UI (Low → Rising → Critical) and feeds back into the Tone Agent to influence pacing
+- **Combat resolution** — detected automatically from the player's action text and resolved with real damage numbers rather than the narrator hand-waving outcomes
+- **Session persistence & resume** — closing the tab and returning later (or clicking "Continue" from the library) reconstructs the full transcript and world state from DynamoDB
+- **Death / madness endings** — reaching 0 HP or 0 Sanity triggers a dedicated ending generation and permanently closes the session
+- **Story export** — download any session's full transcript as Markdown or plain text
+- **Ambient audio** — optional, genre-matched background audio (HTML5 Audio API, no external library)
+- **Auth via Clerk** — every session, world state, and turn record is scoped to the authenticated user's ID; no anonymous data leakage between accounts
+- **Dark, terminal-inspired UI** — leans into the text-adventure DNA of the genre instead of fighting it with generic gradients
 
 ---
 
@@ -313,6 +344,190 @@ lore-and-abyss/
 
 ---
 
+## User flows
+
+### Authentication
+```
+/ (public) → click "Begin Your Story" →
+  not signed in → Clerk modal (sign in / sign up) → redirect back to intended page
+  signed in     → straight through
+```
+
+### Create a story
+```
+/new-game
+  ├─ Select a genre (Fantasy / Horror / Sci-Fi / Noir)
+  ├─ Name your character
+  ├─ Click "Enter the Story"
+  │   └─ POST /api/session
+  │       ├─ Narrator Agent writes the opening scene
+  │       ├─ A short evocative session title is generated
+  │       └─ SESSION + WORLDSTATE + opening TURN# written to DynamoDB
+  └─ Redirect to /game/[sessionId]
+```
+
+### Play a turn
+```
+/game/[sessionId]
+  ├─ Player clicks a choice OR types a custom action
+  ├─ POST /api/turn
+  │   ├─ Combat Agent (if action is combat-flavored)
+  │   ├─ World State Agent + Tone Agent (parallel)
+  │   ├─ Memory Agent (if session > 10 turns)
+  │   ├─ Narrator Agent → next narrative + 3 choices
+  │   └─ Death/madness check → Ending Agent if HP or Sanity hit 0
+  └─ UI streams the narrative in, updates sidebar, re-renders choices
+```
+
+### Resume a story
+```
+/sessions → click "Continue" on any session
+  └─ /game/[sessionId] (no sessionStorage present)
+      └─ GET /api/session/[sessionId]
+          └─ Parallel fetch: SESSION metadata + WORLDSTATE + all TURN# records
+      └─ Full transcript + world state + last choices reconstructed in one round trip
+```
+
+### Export a story
+```
+/game/[sessionId] or /sessions
+  └─ Click "Export"
+      └─ Full TURN# transcript formatted client-side as Markdown or plain text
+      └─ Browser download triggered (no server round trip needed)
+```
+
+---
+
+## API Endpoints
+
+All routes live under `app/api/` and are protected by Clerk middleware unless noted otherwise.
+
+| Method | Endpoint | Purpose | Auth |
+|---|---|---|---|
+| `POST` | `/api/session` | Create a new session: generates the opening narrative + session title, writes `SESSION`, `WORLDSTATE`, and the opening `TURN#` to DynamoDB | ✅ required |
+| `GET` | `/api/sessions` | List all sessions for the current user, most recent first (uses the `UserSessionsByDate` GSI) | ✅ required |
+| `GET` | `/api/session/[sessionId]` | Resume a session — fetches `SESSION` metadata, `WORLDSTATE`, and the full `TURN#` transcript in parallel | ✅ required |
+| `POST` | `/api/turn` | The core agent orchestrator — runs Combat/World State/Tone/Memory/Narrator agents for one turn, persists the result, returns narrative + choices + updated world state | ✅ required |
+
+### `POST /api/session`
+
+**Request body:**
+```json
+{
+  "genre": "Fantasy",
+  "characterName": "Aldric"
+}
+```
+
+**Response:**
+```json
+{
+  "sessionId": "1782570471477-vayy5",
+  "sessionName": "The Sarcophagus Breathes",
+  "openingNarrative": "The torch sputtered, throwing long, clawing shadows..."
+}
+```
+
+### `POST /api/turn`
+
+**Request body:**
+```json
+{
+  "sessionId": "1782570471477-vayy5",
+  "playerAction": "Touch the hand",
+  "genre": "Fantasy",
+  "turnNumber": 1
+}
+```
+
+**Response (normal turn):**
+```json
+{
+  "narrative": "As your fingers brush the pale skin...",
+  "choices": ["Pull away sharply", "Press your palm flat against it", "Speak to it"],
+  "worldState": {
+    "hp": 100,
+    "maxHp": 100,
+    "sanity": 92,
+    "maxSanity": 100,
+    "gold": 50,
+    "location": "The Sunken Crypt",
+    "inventory": ["Torch", "Basic Supplies"],
+    "activeCharacters": [],
+    "tensionScore": 35
+  }
+}
+```
+
+**Response (death/ending):**
+```json
+{
+  "narrative": "The cold finally takes him, the last warmth fading...",
+  "choices": [],
+  "worldState": { "...": "..." },
+  "gameOver": true,
+  "gameOverReason": "dead"
+}
+```
+
+### `GET /api/session/[sessionId]`
+
+**Response:**
+```json
+{
+  "session": {
+    "sessionId": "1782570471477-vayy5",
+    "genre": "Fantasy",
+    "characterName": "Aldric",
+    "sessionName": "The Sarcophagus Breathes",
+    "status": "active"
+  },
+  "worldState": { "...": "..." },
+  "story": [{ "type": "system", "content": "..." }],
+  "lastChoices": ["...", "...", "..."],
+  "lastTurnNumber": 7
+}
+```
+
+### `GET /api/sessions`
+
+**Response:**
+```json
+{
+  "sessions": [
+    {
+      "id": "1782570471477-vayy5",
+      "genre": "Fantasy",
+      "title": "The Sarcophagus Breathes",
+      "characterName": "Aldric",
+      "lastPlayed": "2 hours ago",
+      "status": "active"
+    }
+  ]
+}
+```
+
+---
+
+## Component reference
+
+### `app/game/[sessionId]/page.tsx`
+The main game client component. Owns the story array, world state, choices, and game-over state. Loads from `sessionStorage` on a fresh session (fastest path right after creation) or falls back to `GET /api/session/[sessionId]` when resuming from a direct URL or the library. Handles streaming narrative rendering, mobile tab switching between Story and World State, and disables input once a session reaches `dead` or `insane` status.
+
+### `lib/ai.ts`
+The single provider-agnostic AI client. Exposes one function — `invokeModel(prompt, systemPrompt)` — used identically by every agent. Swapping the underlying provider (AI/ML API → Bedrock → OpenAI) means changing this file only.
+
+### `lib/dynamodb.ts`
+Sets up the `DynamoDBDocumentClient`, which wraps the raw `DynamoDBClient` to automatically marshal/unmarshal plain JS objects, so the rest of the codebase never touches DynamoDB's native `{ S: "value" }` type syntax.
+
+### `middleware.ts`
+Clerk route protection. Public routes: `/`, `/sign-in`, `/sign-up`. Protected routes: `/new-game`, `/game/*`, `/sessions`, and all `/api/*` routes except none — every API route requires a signed-in user.
+
+### `components/Navbar.tsx`
+Shared nav bar with conditional rendering via Clerk's `<Show when="signed-in">` / `<Show when="signed-out">` components — shows "My Stories" / "+ New Game" / `UserButton` when signed in, a single "Sign In" button (opening Clerk's modal) when signed out.
+
+---
+
 ## Setup & local development
 
 ### Prerequisites
@@ -329,33 +544,11 @@ cd lore-and-abyss
 npm install
 ```
 
-### 2. Create the DynamoDB table
-
-In the AWS Console → DynamoDB → Create table:
-- Table name: `lore-abyss`
-- Partition key: `pk` (String)
-- Sort key: `sk` (String)
-- Capacity mode: **On-demand**
-
-Then add a Global Secondary Index:
-- Index name: `UserSessionsByDate`
-- Partition key: `userId` (String)
-- Sort key: `lastPlayedAt` (String)
-- Projected attributes: All
-
-### 3. Create an IAM user
-
-IAM → Users → Create user → attach `AmazonDynamoDBFullAccess` → generate an access key pair (application running outside AWS).
-
-### 4. Set up Clerk
-
-Create an application at [dashboard.clerk.com](https://dashboard.clerk.com), copy the publishable and secret keys, and set the sign-in/sign-up/redirect paths under **Configure → Paths**.
-
-### 5. Configure environment variables
+### 2. Configure environment variables
 
 See [Environment variables](#environment-variables) below.
 
-### 6. Run
+### 3. Run
 
 ```bash
 npm run dev
@@ -387,20 +580,67 @@ AIML_BASE_URL=https://api.aimlapi.com/v1
 AIML_MODEL=meta-llama/Llama-3.2-3B-Instruct-Turbo
 ```
 
+### Where to get each value
+
+| Variable | Source |
+|---|---|
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` | [dashboard.clerk.com](https://dashboard.clerk.com) → your app → API Keys |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | IAM → Users → your user → Security credentials → Create access key |
+| `AIML_API_KEY` | [aimlapi.com](https://aimlapi.com) → Dashboard → API Keys |
+
 ---
 
-## Feature walkthrough
+## AWS & Clerk setup
 
-- **Genre selection** — Fantasy, Horror, Sci-Fi, Noir, each with a distinct system prompt that shapes vocabulary, pacing, and stakes throughout the entire session.
-- **Streaming narrative** — story text streams in word by word rather than appearing all at once, reinforcing the "live dungeon master" feel.
-- **Living world state sidebar** — HP, sanity, gold, inventory, current location, and present NPCs update after every turn, sourced directly from the World State Agent's output.
-- **Tension meter** — a 0–100 score maintained by the World State Agent that visibly shifts the UI (Low → Rising → Critical) and is fed back into the Tone Agent to influence pacing.
-- **Combat resolution** — detected automatically from the player's action text; resolved with real damage numbers rather than the narrator hand-waving outcomes.
-- **Session persistence & resume** — closing the tab and returning later (or clicking "Continue" from the library) reconstructs the full transcript and world state from DynamoDB.
-- **Death / madness endings** — reaching 0 HP or 0 Sanity triggers a dedicated ending generation and permanently closes the session.
-- **Story export** — download any session's full transcript as Markdown or plain text.
-- **Ambient audio** — optional, genre-matched background audio (HTML5 Audio API, no external library).
-- **Auth via Clerk** — every session, world state, and turn record is scoped to the authenticated user's ID; no anonymous data leakage between accounts.
+### Create the DynamoDB table
+
+In the AWS Console → DynamoDB → Create table:
+- Table name: `lore-abyss`
+- Partition key: `pk` (String)
+- Sort key: `sk` (String)
+- Capacity mode: **On-demand**
+
+Then add a Global Secondary Index:
+- Index name: `UserSessionsByDate`
+- Partition key: `userId` (String)
+- Sort key: `lastPlayedAt` (String)
+- Projected attributes: All
+
+### Create an IAM user
+
+IAM → Users → Create user → attach `AmazonDynamoDBFullAccess` → generate an access key pair (application running outside AWS) → copy both keys immediately, AWS never shows the secret again.
+
+> **Note on case sensitivity:** DynamoDB key names are case-sensitive. This project uses lowercase `pk`/`sk` throughout — make sure your table's partition and sort key names match exactly, or every `PutCommand`/`GetCommand`/`QueryCommand` call will fail with `Missing the key pk in the item`.
+
+### Set up Clerk
+
+1. Create an application at [dashboard.clerk.com](https://dashboard.clerk.com)
+2. Copy the publishable and secret keys into `.env.local`
+3. Under **Configure → Paths**, set:
+   - Sign-in URL: `/sign-in`
+   - Sign-up URL: `/sign-up`
+   - After sign-in URL: `/`
+   - After sign-up URL: `/`
+4. Create the catch-all route pages — `app/sign-in/[[...sign-in]]/page.tsx` and `app/sign-up/[[...sign-up]]/page.tsx` — rendering Clerk's `<SignIn />` / `<SignUp />` components. These pages must exist or Clerk's OAuth callback will 404.
+
+---
+
+## Key technical decisions
+
+### Single-table DynamoDB design over multiple tables
+Sessions, world state, and turns are queried together far more often than independently. A single table with `pk`/`sk` composite keys keeps every screen's data fetchable in one or two calls without joins — the standard DynamoDB pattern for this access shape. See [Data model](#data-model-dynamodb) for the full key schema.
+
+### Provider-agnostic AI client (`lib/ai.ts`)
+Every agent calls the same `invokeModel(prompt, systemPrompt)` function regardless of which model provider sits behind it. This was a deliberate seam: the original design targeted AWS Bedrock directly, and when a brand-new AWS account hit Bedrock's default token-per-day throttling mid-build, switching providers to AI/ML API was a one-file change rather than a rewrite across five agent functions.
+
+### Split agents instead of one mega-prompt
+Early testing showed that asking a single model call to simultaneously write prose, return structured JSON for stat changes, and resolve combat damage produced inconsistent JSON and diluted narrative quality. Separating concerns into Narrator / World State / Tone / Combat / Memory agents let each prompt stay short, focused, and reliably parseable — at the cost of more total model calls per turn, mitigated by running independent agents in parallel with `Promise.all`.
+
+### `use()` for async route params
+Next.js 16 made `params` a Promise in client components. Rather than converting the game page to a server component (which would break the streaming, optimistic-update client state the page depends on), `params` is unwrapped with React 19's `use()` hook, keeping the page a client component while staying compatible with the new async params contract.
+
+### Resume-over-sessionStorage priority
+`sessionStorage` is only ever populated immediately after `POST /api/session` succeeds, as a fast path to avoid an extra round trip on the very first render. Every other entry point — direct URL, "Continue" from the library, a refreshed tab — always fetches from `GET /api/session/[sessionId]` instead, since DynamoDB is the only source that's guaranteed complete.
 
 ---
 
@@ -433,12 +673,34 @@ AIML_MODEL=meta-llama/Llama-3.2-3B-Instruct-Turbo
 
 ---
 
+## Hackathon submission notes
+
+**Track:** Open Innovation (Track 4)
+
+**What makes Lore & Abyss memorable for judges:**
+1. The multi-agent split — five distinct agents each doing one job, not one prompt pretending to do everything
+2. The architecture honesty — the README documents the actual Bedrock-to-AI/ML-API swap and why, rather than presenting a sanitized version of the build
+3. Genuine resume — close the tab mid-story, come back a day later, the world state and full transcript are exactly where you left them
+4. The demo moment — pick Horror, type something reckless, watch the tension meter climb to Critical and the narrative tone shift in real time
+
+**Database used:** AWS DynamoDB (on-demand capacity), single-table design with one GSI. See [Data model](#data-model-dynamodb) and [AWS Database usage proof](#aws-database-usage-proof) below.
+
+---
+
 ## AWS Database usage proof
 
 See `/docs/screenshots` in this repo for:
 - DynamoDB table configuration (`lore-abyss`, on-demand capacity, `pk`/`sk` schema)
 - GSI configuration (`UserSessionsByDate`)
 - Live table items showing `SESSION`, `WORLDSTATE`, and `TURN#` records from actual gameplay
+
+---
+
+---
+
+## License
+
+MIT
 
 ---
 
