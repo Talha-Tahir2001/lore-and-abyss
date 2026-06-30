@@ -4,10 +4,32 @@
 > An AI-powered narrative RPG engine where a multi-agent orchestration system plays dungeon master — tracking your stats, your choices, and the world around you, turn by turn.
 >
 > Built for **H0: Hack the Zero Stack** (Vercel v0 × AWS Databases) — Track 4: Open Innovation.
->
-> 🔗 **Repo:** https://github.com/Talha-Tahir2001/lore-and-abyss
 
+> 🔗 **Repo:** https://github.com/Talha-Tahir2001/lore-and-abyss
+> 
+> 🔗 **Links**
+>
+> 🌐 Live Demo: https://lore-and-abyss.vercel.app/
+>
+> 🏆 Devpost Submission: https://devpost.com/software/lore-and-abyss
+>
+> 💻 GitHub Repository: https://github.com/Talha-Tahir2001/lore-and-abyss
+>
+> 📝 DEV.to Article: https://dev.to/talha666tahir/building-lore-and-abyss-a-streaming-ai-dungeon-crawler-with-nextjs-dynamodb-and-multi-agent-ai-150a
+>
+> ☁️ AWS Builders: https://builder.aws.com/content/3FpUnfVSttE6uZycnrvIWqG2NAZ/building-lore-and-abyss-a-streaming-ai-dungeon-crawler-with-nextjs-dynamodb-and-multi-agent-ai
+
+
+![Next.js](https://img.shields.io/badge/Next.js-16-black)
+![React](https://img.shields.io/badge/React-19-61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![AWS DynamoDB](https://img.shields.io/badge/AWS-DynamoDB-orange)
+![Clerk](https://img.shields.io/badge/Auth-Clerk-purple)
+![License](https://img.shields.io/badge/License-MIT-green)
 ---
+
+
+# Lore & Abyss 🗡️
 
 ## What is Lore & Abyss?
 
@@ -209,19 +231,19 @@ Single-table design. One table, four access patterns, one GSI.
 ```mermaid
 erDiagram
     SESSION {
-        string pk "USER#{userId}"
-        string sk "SESSION#{sessionId}"
+        string pk "USER-userId"
+        string sk "SESSION-sessionId"
         string sessionId
         string userId
         string genre
         string characterName
         string sessionName
-        string status "active | dead | insane"
+        string status "active, dead, or insane"
         string createdAt
         string lastPlayedAt
     }
     WORLD_STATE {
-        string pk "SESSION#{sessionId}"
+        string pk "SESSION-sessionId"
         string sk "WORLDSTATE"
         number hp
         number maxHp
@@ -235,9 +257,9 @@ erDiagram
         string updatedAt
     }
     TURN {
-        string pk "SESSION#{sessionId}"
-        string sk "TURN#{isoTimestamp}"
-        string type "system | user | ai"
+        string pk "SESSION-sessionId"
+        string sk "TURN-isoTimestamp"
+        string type "system, user, or ai"
         string content
         list choices
         number turnNumber
@@ -246,6 +268,26 @@ erDiagram
 
     SESSION ||--|| WORLD_STATE : "has one"
     SESSION ||--o{ TURN : "has many"
+```
+
+OR
+
+```mermaid
+flowchart TB
+    Session["SESSION Item<br/>PK: USER#userId<br/>SK: SESSION#sessionId"]
+
+    World["WORLDSTATE Item<br/>PK: SESSION#sessionId<br/>SK: WORLDSTATE"]
+
+    Turn1["TURN Item<br/>PK: SESSION#sessionId<br/>SK: TURN#timestamp"]
+
+    Turn2["TURN Item<br/>PK: SESSION#sessionId<br/>SK: TURN#timestamp"]
+
+    GSI["GSI: UserSessionsByDate<br/>PK: userId<br/>SK: lastPlayedAt"]
+
+    Session --> World
+    Session --> Turn1
+    Session --> Turn2
+    Session -. indexed by .-> GSI
 ```
 
 ### Access patterns
