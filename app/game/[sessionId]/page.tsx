@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
-import { RiFileTextLine, RiMarkdownLine, RiVolumeMuteLine, RiVolumeUpLine } from '@remixicon/react'
+import { RiBrainLine, RiFileTextLine, RiMarkdownLine, RiSkullLine, RiVolumeMuteLine, RiVolumeUpLine } from '@remixicon/react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -31,6 +31,13 @@ interface WorldState {
     inventory: string[]
     activeCharacters: string[]
     tensionScore: number
+}
+
+const GENRE_AUDIO_MAP: Record<string, string> = {
+    'horror': '/audio/508_Danse_de_Vampyr.mp3',
+    'fantasy': '/audio/505_Visitation.mp3',
+    'scifi': '/audio/510_City_of_Wonders.mp3',
+    'noir': '/audio/494_Docks_Noir.mp3',
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -122,12 +129,7 @@ export default function GamePage({ params }: { params: { sessionId: string } }) 
     const storyEndRef = useRef<HTMLDivElement>(null)
     const [showExportMenu, setShowExportMenu] = useState(false);
 
-    const GENRE_AUDIO_MAP: Record<string, string> = {
-        'horror': '/audio/508_Danse_de_Vampyr.mp3',
-        'fantasy': '/audio/505_Visitation.mp3',
-        'scifi': '/audio/510_City_of_Wonders.mp3',
-        'noir': '/audio/494_Docks_Noir.mp3',
-    }
+
 
     const exportAsText = () => {
         if (!sessionMeta || story.length === 0) return
@@ -301,18 +303,52 @@ export default function GamePage({ params }: { params: { sessionId: string } }) 
         }
     }, [worldState?.tensionScore])
 
+    // useEffect(() => {
+    //     async function loadSession() {
+    //         const raw = sessionStorage.getItem(`session_${sessionId}`)
+    //         if (raw) {
+    //             const meta = JSON.parse(raw)
+    //             setSessionMeta(meta)
+    //             setStory([{ type: 'system', content: meta.openingNarrative }])
+    //             setChoices(['Look around carefully', 'Call out into the darkness', 'Check your equipment'])
+    //             setTurnNumber(1)
+    //             return
+    //         }
+
+    //         try {
+    //             const res = await fetch(`/api/session/${sessionId}`)
+    //             if (!res.ok) {
+    //                 window.location.href = '/sessions'
+    //                 return
+    //             }
+    //             const data = await res.json()
+
+    //             setSessionMeta({
+    //                 genre: data.session.genre,
+    //                 characterName: data.session.characterName,
+    //                 sessionName: data.session.sessionName,
+    //             })
+    //             setStory(data.story)
+    //             setWorldState(data.worldState)
+    //             setChoices(data.lastChoices)
+    //             setTurnNumber(data.lastTurnNumber)
+
+    //             if (data.session.status === 'dead') setGameOver('dead')
+    //             if (data.session.status === 'insane') setGameOver('insane')
+
+    //         } catch (err) {
+    //             console.error('Failed to load session:', err)
+    //             window.location.href = '/sessions'
+    //         }
+    //     }
+
+    //     loadSession()
+    // }, [sessionId])
+
+    // ── Auto-scroll to bottom ────────────────────────────────────────────────
+
     useEffect(() => {
         async function loadSession() {
-            const raw = sessionStorage.getItem(`session_${sessionId}`)
-            if (raw) {
-                const meta = JSON.parse(raw)
-                setSessionMeta(meta)
-                setStory([{ type: 'system', content: meta.openingNarrative }])
-                setChoices(['Look around carefully', 'Call out into the darkness', 'Check your equipment'])
-                setTurnNumber(1)
-                return
-            }
-
             try {
                 const res = await fetch(`/api/session/${sessionId}`)
                 if (!res.ok) {
@@ -336,14 +372,23 @@ export default function GamePage({ params }: { params: { sessionId: string } }) 
 
             } catch (err) {
                 console.error('Failed to load session:', err)
-                window.location.href = '/sessions'
+
+                // Only fall back to sessionStorage if the API completely fails
+                const raw = sessionStorage.getItem(`session_${sessionId}`)
+                if (raw) {
+                    const meta = JSON.parse(raw)
+                    setSessionMeta(meta)
+                    setStory([{ type: 'system', content: meta.openingNarrative }])
+                    setChoices(['Look around carefully', 'Call out into the darkness', 'Check your equipment'])
+                    setTurnNumber(1)
+                } else {
+                    window.location.href = '/sessions'
+                }
             }
         }
-
         loadSession()
     }, [sessionId])
 
-    // ── Auto-scroll to bottom ────────────────────────────────────────────────
     useEffect(() => {
         storyEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [story, isLoading])
@@ -484,9 +529,7 @@ export default function GamePage({ params }: { params: { sessionId: string } }) 
                                     {isMuted ? <RiVolumeMuteLine className="h-4 w-4" /> : <RiVolumeUpLine className="h-4 w-4" />}
                                 </Button>
                             )}
-                            {/* 1. Add this state variable at the top of your component with your other states:
-   const [showExportMenu, setShowExportMenu] = useState(false);
-*/}
+
 
                             {story.length > 0 && (
                                 <div className="relative ml-2">
@@ -568,8 +611,21 @@ export default function GamePage({ params }: { params: { sessionId: string } }) 
                             ? 'border-destructive/50 bg-destructive/10'
                             : 'border-chart-4/50 bg-chart-4/10'
                             }`}>
-                            <p className="text-sm font-semibold text-foreground mb-1">
-                                {gameOver === 'dead' ? '💀 Your character has died' : '🌀 Your character has lost their mind'}
+                            {/* <p className="text-sm font-semibold text-foreground mb-1">
+                                {gameOver === 'dead' ? <><RiSkullLine /> {'Your character has died'} </> : <><RiBrainLine /> {'Your character has lost their mind'}</>}
+                            </p> */}
+                            <p className="inline-flex items-center gap-2 text-sm font-semibold text-foreground mb-1">
+                                {gameOver === 'dead' ? (
+                                    <>
+                                        <RiSkullLine className="w-4 h-4 text-rose-500" />
+                                        <span>Your character has died</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <RiBrainLine className="w-4 h-4 text-purple-500" />
+                                        <span>Your character has lost their mind</span>
+                                    </>
+                                )}
                             </p>
                             <p className="text-xs text-muted-foreground mb-3">This story has ended.</p>
                             <div className="flex gap-2 justify-center">
