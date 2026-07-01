@@ -56,7 +56,7 @@ export default function NewGame() {
                 body: JSON.stringify({
                     genre: selectedGenre,
                     characterName: characterName.trim(),
-                    userId: "anonymous", // TODO: replace with real auth later
+                    // userId: "anonymous", // TODO: replace with real auth later
                 }),
             })
 
